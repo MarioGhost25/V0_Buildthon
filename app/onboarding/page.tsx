@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
+import LocationPicker, { type LocationData } from "@/components/LocationPicker";
 
 // ─── Design tokens (mirror globals.css) ───────────────────────────────────────
 const TOKEN = {
@@ -86,6 +87,7 @@ const step3Schema = z.object({
 type Step1Data  = z.infer<typeof step1Schema>;
 type Step3Data  = z.infer<typeof step3Schema>;
 type FileUpload = { front: File | null; back: File | null; selfie: File | null };
+interface Step3Result { formData: Step3Data; location: LocationData | null; }
 
 // ─── Shared UI primitives ─────────────────────────────────────────────────────
 function Label({ htmlFor, children }: { htmlFor?: string; children: React.ReactNode }) {
@@ -288,23 +290,7 @@ function UploadZone({
   );
 }
 
-// ─── Simple map placeholder (Leaflet would require SSR guard — using styled placeholder) ─
-function MapPlaceholder({ address }: { address: string }) {
-  return (
-    <div
-      className="w-full rounded-2xl overflow-hidden flex flex-col items-center justify-center gap-2 mt-2"
-      style={{ background: TOKEN.mutedBg, border: `1.5px solid ${TOKEN.border}`, minHeight: 160 }}
-    >
-      <MapPin size={28} style={{ color: TOKEN.primary }} />
-      <p className="text-sm font-semibold text-center px-4" style={{ color: TOKEN.foreground }}>
-        {address || "Tu ubicación aproximada aparecerá aquí"}
-      </p>
-      <p className="text-xs text-center px-6" style={{ color: TOKEN.muted }}>
-        Solo se muestra el barrio/colonia a los inquilinos, nunca la dirección exacta.
-      </p>
-    </div>
-  );
-}
+
 
 // ─── STEP 1 ───────────────────────────────────────────────────────────────────
 function Step1({ onNext }: { onNext: (data: Step1Data) => void }) {
@@ -529,17 +515,17 @@ function Step3({
   onNext,
 }: {
   onBack: () => void;
-  onNext: (data: Step3Data) => void;
+  onNext: (result: Step3Result) => void;
 }) {
   const { register, control, handleSubmit, watch, formState: { errors } } = useForm<Step3Data>({
     resolver: zodResolver(step3Schema),
   });
 
-  const address = watch("address", "");
-  const env = watch("environment", "");
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
+  const city = watch("city", "");
 
   return (
-    <form onSubmit={handleSubmit(onNext)} noValidate>
+    <form onSubmit={handleSubmit(data => onNext({ formData: data, location: locationData }))} noValidate>
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `${TOKEN.primary}22` }}>
           <Home size={18} style={{ color: TOKEN.primary }} />
@@ -618,8 +604,14 @@ function Step3({
 
       {/* Map */}
       <div className="mb-2">
-        <Label>Ubicación aproximada</Label>
-        <MapPlaceholder address={address} />
+        <Label>Fija tu ubicación en el mapa</Label>
+        <p className="text-xs mb-2" style={{ color: TOKEN.muted }}>
+          Arrastra el marcador o busca tu dirección. Solo se muestra un radio aproximado a los inquilinos.
+        </p>
+        <LocationPicker
+          initialCity={city}
+          onLocationChange={setLocationData}
+        />
       </div>
 
       <div className="flex items-center justify-between mt-8 gap-3">
@@ -649,10 +641,12 @@ function Step3({
 function Step4({
   step1,
   step3,
+  location,
   onBack,
 }: {
   step1: Step1Data;
   step3: Step3Data;
+  location: LocationData | null;
   onBack: () => void;
 }) {
   const [accepted, setAccepted] = useState(false);
@@ -669,7 +663,7 @@ function Step4({
       const res = await fetch("/api/onboarding", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...step1, ...step3 }),
+        body: JSON.stringify({ ...step1, ...step3, location }),
       });
       const json = await res.json();
       if (json.success) setDone(true);
@@ -738,6 +732,12 @@ function Step4({
         <Row label="Barrio / Colonia" value={step3.neighborhood} />
         <Row label="Ciudad" value={step3.city} />
         <Row label="Ambiente" value={env ? `${env.icon} ${env.label}` : step3.environment} />
+        {location && (
+          <Row
+            label="Ubicación (privada)"
+            value={`${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}${location.neighborhood ? ` · ${location.neighborhood}` : ""}`}
+          />
+        )}
       </div>
 
       {/* Terms */}
@@ -785,10 +785,11 @@ function Step4({
 
 // ─── ROOT CONTROLLER ──────────────────────────────────────────────────────────
 export default function OnboardingPage() {
-  const [step, setStep]     = useState(0);
-  const [step1Data, setStep1Data] = useState<Step1Data | null>(null);
-  const [step3Data, setStep3Data] = useState<Step3Data | null>(null);
-  const [files, setFiles]   = useState<FileUpload>({ front: null, back: null, selfie: null });
+  const [step, setStep]         = useState(0);
+  const [step1Data, setStep1Data]   = useState<Step1Data | null>(null);
+  const [step3Data, setStep3Data]   = useState<Step3Data | null>(null);
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
+  const [files, setFiles]       = useState<FileUpload>({ front: null, back: null, selfie: null });
   const cardRef = useRef<HTMLDivElement>(null);
 
   const scrollTop = () => cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -833,13 +834,18 @@ export default function OnboardingPage() {
           {step === 2 && (
             <Step3
               onBack={back}
-              onNext={data => { setStep3Data(data); next(); }}
+              onNext={({ formData, location }) => {
+                setStep3Data(formData);
+                setLocationData(location);
+                next();
+              }}
             />
           )}
           {step === 3 && step1Data && step3Data && (
             <Step4
               step1={step1Data}
               step3={step3Data}
+              location={locationData}
               onBack={back}
             />
           )}
