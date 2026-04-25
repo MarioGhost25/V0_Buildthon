@@ -39,7 +39,7 @@ export default function Navbar() {
             Iniciar sesión
           </a>
           <a
-            href="#"
+            href="/registro"
             className="text-sm font-semibold bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-full transition-colors"
           >
             Publicar cuarto
@@ -68,7 +68,7 @@ export default function Navbar() {
           <a href="#ciudades" onClick={() => setOpen(false)} className="text-foreground/70 hover:text-primary transition-colors">
             Ciudades
           </a>
-          <a href="#" className="bg-primary hover:bg-primary-hover text-white text-center px-4 py-2 rounded-full transition-colors font-semibold">
+          <a href="/registro" className="bg-primary hover:bg-primary-hover text-white text-center px-4 py-2 rounded-full transition-colors font-semibold">
             Publicar cuarto
           </a>
         </div>

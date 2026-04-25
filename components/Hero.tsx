@@ -33,7 +33,7 @@ export default function Hero() {
 
           <div className="flex flex-col sm:flex-row gap-4">
             <a
-              href="#"
+              href="/registro"
               className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-white font-semibold text-base px-7 py-4 rounded-full transition-colors shadow-lg"
             >
               <span>Publicar mi cuarto</span>
