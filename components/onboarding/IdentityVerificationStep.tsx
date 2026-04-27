@@ -481,10 +481,16 @@ export default function IdentityVerificationStep({
       title: "Reverso del documento",
       hint: "Muestra el reverso completo con el mismo cuidado.",
     },
-    selfie: {
-      title: role === "propietario" ? "Selfie de verificacion" : "Tu selfie con el documento",
-      hint: "Sostien el documento junto a tu cara, con buena luz y sin filtros.",
-    },
+    selfie:
+      role === "propietario"
+        ? {
+            title: "Selfie de verificacion",
+            hint: "Mira directamente a la camara con buena iluminacion. Sin filtros ni lentes.",
+          }
+        : {
+            title: "Tu selfie con el documento",
+            hint: "Sostien el documento junto a tu cara, con buena luz y sin filtros.",
+          },
     result: { title: "", hint: "" },
   };
 
@@ -526,7 +532,11 @@ export default function IdentityVerificationStep({
         {subStep === "selfie" && (
           <CameraCapture
             mode="selfie"
-            label="Selfie sosteniendo tu documento"
+            label={
+              role === "propietario"
+                ? "Selfie de verificacion (mira a la camara)"
+                : "Selfie sosteniendo tu documento de identidad"
+            }
             onCapture={handleSelfie}
             onUploadFallback={handleSelfie}
           />

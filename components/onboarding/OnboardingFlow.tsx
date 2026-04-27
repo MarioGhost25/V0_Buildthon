@@ -84,7 +84,6 @@ export default function OnboardingFlow() {
           onBack={goBack}
           onSubmit={() => {
             // In production: POST to /api/registro
-            console.log("[v0] Onboarding submitted", { step1, step3 });
           }}
         />
       )}
