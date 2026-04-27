@@ -2,11 +2,13 @@
 // lib/id-validation.ts
 //
 // Client-side orchestrator for identity verification.
-// All heavy lifting (OCR, face-match, liveness) is done server-side.
-// This module never processes identity documents in the browser.
+// Calls the unified /api/verify/identity endpoint which runs:
+//   1. Eden AI OCR (document readability, expiry, age)
+//   2. Levenshtein name match (returns nameWarning, non-blocking)
+//   3. AWS Rekognition face comparison (similarity >= 85)
+//   4. AWS Rekognition liveness detection
 //
-// OCR provider:  Eden AI (amazon backend) — https://www.edenai.co/
-// Face provider: AWS Rekognition CompareFaces + DetectFaces
+// Raw images are never processed here — only FormData upload to the server.
 // ---------------------------------------------------------------------------
 
 export interface VerificationResult {
@@ -22,164 +24,94 @@ export interface VerificationResult {
   faceMatchScore: number;
   livenessDetected: boolean;
   overallApproved: boolean;
+  nameWarning?: boolean;
   failureReason?: string;
   manualReview?: boolean;
 }
 
 // ---------------------------------------------------------------------------
-// Step 1 — OCR
+// Main exported function — matches spec signature
 // ---------------------------------------------------------------------------
-async function runOcr(
-  frontFile: File,
-  backFile: File,
-): Promise<{
-  documentNumber: string;
-  fullName: string;
-  expiryDate: string;
-  birthDate: string;
-}> {
-  const body = new FormData();
-  body.append("front", frontFile);
-  body.append("back", backFile);
-
-  const res = await fetch("/api/verify/ocr", { method: "POST", body });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Error de OCR" }));
-    throw new OcrError(err.error ?? "No pudimos leer el documento.");
-  }
-
-  const data = await res.json();
-  return {
-    documentNumber: data.documentNumber ?? "",
-    fullName:       data.fullName ?? "",
-    expiryDate:     data.expiryDate ?? "",
-    birthDate:      data.birthDate ?? "",
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Steps 2 & 3 — Face match + liveness
-// ---------------------------------------------------------------------------
-async function runFaceMatch(
-  docFront: File,
+export async function validateIdentity(
+  idFront: File,
+  idBack: File,
   selfie: File,
-): Promise<{ similarity: number; livenessDetected: boolean }> {
+  registeredName: string,
+): Promise<VerificationResult> {
   const body = new FormData();
-  body.append("document", docFront);
+  body.append("front", idFront);
+  body.append("back", idBack);
   body.append("selfie", selfie);
+  body.append("registeredName", registeredName);
 
-  const res = await fetch("/api/verify/face-match", { method: "POST", body });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ reason: "Error de verificacion facial" }));
-    throw new FaceMatchError(
-      err.reason ?? "La selfie no coincide con la foto del documento.",
-      err.similarity ?? 0,
-      err.livenessDetected ?? false,
-    );
+  let res: Response;
+  try {
+    res = await fetch("/api/verify/identity", { method: "POST", body });
+  } catch {
+    return makeFailure(idFront, idBack, selfie, "Error de conexion. Verifica tu internet e intenta de nuevo.");
   }
 
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    return {
+      idFrontFile:    idFront,
+      idBackFile:     idBack,
+      selfieFile:     selfie,
+      extractedData:  data.extractedData ?? emptyExtracted(),
+      faceMatchScore: data.faceMatchScore ?? 0,
+      livenessDetected: data.livenessDetected ?? false,
+      overallApproved:  false,
+      nameWarning:      data.nameWarning ?? false,
+      failureReason:    data.failureReason ?? data.error ?? "La verificacion fallo. Intenta de nuevo.",
+    };
+  }
+
   return {
-    similarity:      data.similarity ?? 0,
+    idFrontFile:      idFront,
+    idBackFile:       idBack,
+    selfieFile:       selfie,
+    extractedData:    data.extractedData ?? emptyExtracted(),
+    faceMatchScore:   data.faceMatchScore ?? 0,
     livenessDetected: data.livenessDetected ?? false,
+    overallApproved:  data.approved ?? false,
+    nameWarning:      data.nameWarning ?? false,
   };
 }
 
 // ---------------------------------------------------------------------------
-// Main orchestrator
+// Backwards-compatible alias (used by existing IdentityVerificationStep calls
+// that don't yet pass registeredName — will be updated in the next step).
 // ---------------------------------------------------------------------------
 export async function validateIdDocument(
-  frontFile: File,
-  backFile: File,
-  selfieFile: File,
+  idFront: File,
+  idBack: File,
+  selfie: File,
 ): Promise<VerificationResult> {
-  // ── Step 1: OCR ────────────────────────────────────────────────────────────
-  let extractedData: VerificationResult["extractedData"];
-  try {
-    extractedData = await runOcr(frontFile, backFile);
-  } catch (err) {
-    const msg = err instanceof OcrError
-      ? err.message
-      : "No pudimos leer el documento. Asegurate de que este bien iluminado y sin obstrucciones.";
-    return {
-      idFrontFile: frontFile,
-      idBackFile: backFile,
-      selfieFile,
-      extractedData: { documentNumber: "", fullName: "", expiryDate: "", birthDate: "" },
-      faceMatchScore: 0,
-      livenessDetected: false,
-      overallApproved: false,
-      failureReason: msg,
-    };
-  }
+  return validateIdentity(idFront, idBack, selfie, "");
+}
 
-  // ── Step 2 + 3: Face match & liveness ─────────────────────────────────────
-  let faceMatchScore = 0;
-  let livenessDetected = false;
-  try {
-    const fm = await runFaceMatch(frontFile, selfieFile);
-    faceMatchScore = fm.similarity;
-    livenessDetected = fm.livenessDetected;
-  } catch (err) {
-    const reason = err instanceof FaceMatchError ? err.message : "Error en verificacion facial.";
-    const score  = err instanceof FaceMatchError ? err.similarity : 0;
-    const live   = err instanceof FaceMatchError ? err.livenessDetected : false;
-    return {
-      idFrontFile: frontFile,
-      idBackFile: backFile,
-      selfieFile,
-      extractedData,
-      faceMatchScore: score,
-      livenessDetected: live,
-      overallApproved: false,
-      failureReason: reason,
-    };
-  }
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function emptyExtracted() {
+  return { documentNumber: "", fullName: "", expiryDate: "", birthDate: "" };
+}
 
-  // ── Overall decision ───────────────────────────────────────────────────────
-  const overallApproved = faceMatchScore >= 85 && livenessDetected;
-
-  let failureReason: string | undefined;
-  if (!overallApproved) {
-    if (!livenessDetected) {
-      failureReason =
-        "No pudimos confirmar que eres una persona real. Intenta con mejor iluminacion.";
-    } else if (faceMatchScore < 85) {
-      failureReason = "La selfie no coincide con la foto del documento.";
-    }
-  }
-
+function makeFailure(
+  idFront: File,
+  idBack: File,
+  selfie: File,
+  failureReason: string,
+): VerificationResult {
   return {
-    idFrontFile: frontFile,
-    idBackFile: backFile,
-    selfieFile,
-    extractedData,
-    faceMatchScore,
-    livenessDetected,
-    overallApproved,
+    idFrontFile:      idFront,
+    idBackFile:       idBack,
+    selfieFile:       selfie,
+    extractedData:    emptyExtracted(),
+    faceMatchScore:   0,
+    livenessDetected: false,
+    overallApproved:  false,
     failureReason,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Custom error classes
-// ---------------------------------------------------------------------------
-class OcrError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "OcrError";
-  }
-}
-
-class FaceMatchError extends Error {
-  similarity: number;
-  livenessDetected: boolean;
-  constructor(message: string, similarity: number, livenessDetected: boolean) {
-    super(message);
-    this.name = "FaceMatchError";
-    this.similarity = similarity;
-    this.livenessDetected = livenessDetected;
-  }
 }

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { Card, StepNav } from "./primitives";
 import CameraCapture from "./CameraCapture";
-import { validateIdDocument, type VerificationResult } from "@/lib/id-validation";
+import { validateIdentity, type VerificationResult } from "@/lib/id-validation";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -168,6 +168,7 @@ export default function IdentityVerificationStep({
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
 
   const [analyzing, setAnalyzing] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0); // 0-3 for the 4 sequential labels
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [retryCount, setRetryCount] = useState(0);
 
@@ -192,20 +193,20 @@ export default function IdentityVerificationStep({
     setSelfieFile(file);
     setSubStep("result");
     setAnalyzing(true);
+    setLoadingStep(0);
+
+    // Timed sequential loading labels (visual feedback per spec)
+    const timers = [
+      setTimeout(() => setLoadingStep(1), 1500),
+      setTimeout(() => setLoadingStep(2), 2500),
+      setTimeout(() => setLoadingStep(3), 3500),
+    ];
 
     try {
-      const res = await validateIdDocument(frontFile!, backFile!, file);
+      const res = await validateIdentity(frontFile!, backFile!, file, registeredName);
 
-      // Check for name mismatch
-      const nameDiffers =
-        registeredName &&
-        res.extractedData.fullName &&
-        levenshtein(
-          registeredName.toLowerCase().trim(),
-          res.extractedData.fullName.toLowerCase().trim(),
-        ) > 3;
-
-      if (nameDiffers && res.overallApproved) {
+      // Name warning is now set server-side; check and show modal if needed
+      if (res.nameWarning && res.overallApproved) {
         setPendingResult(res);
         setShowNameModal(true);
       } else {
@@ -223,6 +224,7 @@ export default function IdentityVerificationStep({
         failureReason: "Error de conexion. Por favor intenta de nuevo.",
       });
     } finally {
+      timers.forEach(clearTimeout);
       setAnalyzing(false);
     }
   }, [frontFile, backFile, registeredName]);
@@ -277,11 +279,18 @@ export default function IdentityVerificationStep({
   // Render — RESULT sub-step
   // ---------------------------------------------------------------------------
   if (subStep === "result") {
+    const LOADING_LABELS = [
+      "Analizando documento...",
+      "Verificando datos...",
+      "Comparando con tu selfie...",
+      "Finalizando...",
+    ];
+
     if (analyzing) {
       return (
         <Card>
           <SubProgressBar current="result" />
-          <div className="flex flex-col items-center gap-5 py-8">
+          <div className="flex flex-col items-center gap-6 py-8">
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
               <Loader2 size={28} className="text-primary animate-spin" />
             </div>
@@ -291,17 +300,31 @@ export default function IdentityVerificationStep({
                 Esto puede tardar unos segundos.
               </p>
             </div>
-            <div className="flex flex-col gap-2 w-full max-w-xs">
-              {[
-                "Leyendo el documento",
-                "Comparando rostro",
-                "Verificando autenticidad",
-              ].map((label, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <Loader2 size={12} className="text-primary animate-spin shrink-0" style={{ animationDelay: `${i * 200}ms` }} />
-                  <span className="text-xs text-muted">{label}</span>
-                </div>
-              ))}
+            <div className="flex flex-col gap-3 w-full max-w-xs">
+              {LOADING_LABELS.map((label, i) => {
+                const isActive = i === loadingStep;
+                const isDone   = i < loadingStep;
+                return (
+                  <div
+                    key={i}
+                    className={`flex items-center gap-3 rounded-xl px-4 py-2.5 transition-all duration-300 ${
+                      isActive ? "bg-secondary" : "opacity-40"
+                    }`}
+                  >
+                    {isDone ? (
+                      <CheckCircle2 size={14} className="text-primary shrink-0" />
+                    ) : (
+                      <Loader2
+                        size={14}
+                        className={`shrink-0 ${isActive ? "text-primary animate-spin" : "text-muted"}`}
+                      />
+                    )}
+                    <span className={`text-sm font-medium ${isActive ? "text-foreground" : "text-muted"}`}>
+                      {label}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </Card>
@@ -397,16 +420,7 @@ export default function IdentityVerificationStep({
               />
               <ResultRow
                 label="Nombre coincide con el registrado"
-                passed={
-                  !registeredName || !ed.fullName
-                    ? true
-                    : levenshtein(
-                        registeredName.toLowerCase().trim(),
-                        ed.fullName.toLowerCase().trim(),
-                      ) <= 3
-                    ? true
-                    : "warning"
-                }
+                passed={result.nameWarning ? "warning" : true}
                 detail={ed.fullName ? `Nombre en documento: ${ed.fullName}` : undefined}
               />
               <ResultRow
@@ -566,22 +580,4 @@ export default function IdentityVerificationStep({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Levenshtein distance utility (client-safe, pure function)
-// ---------------------------------------------------------------------------
-function levenshtein(a: string, b: string): number {
-  const m = a.length;
-  const n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
-    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
-  );
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] =
-        a[i - 1] === b[j - 1]
-          ? dp[i - 1][j - 1]
-          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-    }
-  }
-  return dp[m][n];
-}
+
