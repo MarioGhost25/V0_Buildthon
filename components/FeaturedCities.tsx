@@ -1,11 +1,47 @@
-import { MapPin } from "lucide-react";
+import Image from "next/image";
+import { MapPin, TrendingUp } from "lucide-react";
 
 const cities = [
-  { name: "Guadalajara", country: "México", listings: "1,200+" },
-  { name: "Bogotá", country: "Colombia", listings: "980+" },
-  { name: "Lima", country: "Perú", listings: "870+" },
-  { name: "Medellín", country: "Colombia", listings: "640+" },
-  { name: "San Salvador", country: "El Salvador", listings: "310+" },
+  {
+    name: "Guadalajara",
+    country: "México",
+    listings: "1,200+",
+    priceFrom: 180,
+    image: "/images/cities/guadalajara.jpg",
+    popular: true,
+  },
+  {
+    name: "Bogotá",
+    country: "Colombia",
+    listings: "980+",
+    priceFrom: 200,
+    image: "/images/cities/bogota.jpg",
+    popular: true,
+  },
+  {
+    name: "Lima",
+    country: "Perú",
+    listings: "870+",
+    priceFrom: 220,
+    image: "/images/cities/lima.jpg",
+    popular: false,
+  },
+  {
+    name: "Medellín",
+    country: "Colombia",
+    listings: "640+",
+    priceFrom: 190,
+    image: "/images/cities/medellin.jpg",
+    popular: true,
+  },
+  {
+    name: "San Salvador",
+    country: "El Salvador",
+    listings: "310+",
+    priceFrom: 150,
+    image: "/images/cities/san-salvador.jpg",
+    popular: false,
+  },
 ];
 
 export default function FeaturedCities() {
@@ -25,27 +61,65 @@ export default function FeaturedCities() {
           </p>
         </div>
 
-        {/* City pills */}
-        <div className="flex flex-wrap justify-center gap-4 mb-16">
+        {/* City grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-12">
           {cities.map((city) => (
             <a
               key={city.name}
               href="#"
-              className="group flex items-center gap-2 bg-card hover:bg-primary hover:text-white border border-border rounded-full px-5 py-3 transition-colors shadow-sm"
+              className="group relative aspect-[3/4] rounded-2xl overflow-hidden shadow-sm hover:shadow-primary-lg transition-all duration-300"
             >
-              <MapPin
-                size={15}
-                className="text-primary group-hover:text-white transition-colors"
+              {/* Background image */}
+              <Image
+                src={city.image}
+                alt={`${city.name}, ${city.country}`}
+                fill
+                className="object-cover group-hover:scale-110 transition-transform duration-500"
               />
-              <span className="font-semibold text-sm text-foreground group-hover:text-white transition-colors">
-                {city.name}
-              </span>
-              <span className="text-muted group-hover:text-white/80 text-xs transition-colors">
-                {city.country}
-              </span>
-              <span className="bg-secondary group-hover:bg-white/20 text-muted group-hover:text-white text-xs font-medium px-2 py-0.5 rounded-full transition-colors">
-                {city.listings}
-              </span>
+
+              {/* Gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-foreground/80 via-foreground/20 to-transparent" />
+
+              {/* Popular badge */}
+              {city.popular && (
+                <div className="absolute top-3 left-3 flex items-center gap-1 bg-primary text-white text-xs font-semibold px-2.5 py-1 rounded-full">
+                  <TrendingUp size={12} />
+                  <span>Popular</span>
+                </div>
+              )}
+
+              {/* Content */}
+              <div className="absolute inset-x-0 bottom-0 p-4">
+                {/* City info */}
+                <div className="flex items-center gap-1.5 text-white/80 text-xs mb-1">
+                  <MapPin size={12} />
+                  <span>{city.country}</span>
+                </div>
+                <h3 className="text-white font-bold text-lg mb-1 group-hover:text-primary transition-colors">
+                  {city.name}
+                </h3>
+
+                {/* Price and listings */}
+                <div className="glass rounded-lg px-3 py-2 mt-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-foreground text-xs">Desde</p>
+                      <p className="text-foreground font-bold">
+                        ${city.priceFrom}
+                        <span className="text-foreground/60 font-normal text-xs">
+                          /mes
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-foreground/60 text-xs">Habitaciones</p>
+                      <p className="text-foreground font-semibold text-sm">
+                        {city.listings}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </a>
           ))}
         </div>
@@ -57,7 +131,7 @@ export default function FeaturedCities() {
           </p>
           <a
             href="#"
-            className="inline-flex items-center gap-2 text-primary hover:text-accent font-semibold text-sm border border-primary hover:border-accent px-6 py-2.5 rounded-full transition-colors"
+            className="inline-flex items-center gap-2 text-primary hover:text-white hover:bg-primary font-semibold text-sm border-2 border-primary px-6 py-3 rounded-full transition-all hover:shadow-primary-md"
           >
             Notifícame cuando lleguen a mi ciudad
           </a>
