@@ -1,49 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { MapPin, TrendingUp } from "lucide-react";
-
-const cities = [
-  {
-    name: "Guadalajara",
-    country: "México",
-    listings: "1,200+",
-    priceFrom: 180,
-    image: "/images/cities/guadalajara.jpg",
-    popular: true,
-  },
-  {
-    name: "Bogotá",
-    country: "Colombia",
-    listings: "980+",
-    priceFrom: 200,
-    image: "/images/cities/bogota.jpg",
-    popular: true,
-  },
-  {
-    name: "Lima",
-    country: "Perú",
-    listings: "870+",
-    priceFrom: 220,
-    image: "/images/cities/lima.jpg",
-    popular: false,
-  },
-  {
-    name: "Medellín",
-    country: "Colombia",
-    listings: "640+",
-    priceFrom: 190,
-    image: "/images/cities/medellin.jpg",
-    popular: true,
-  },
-  {
-    name: "San Salvador",
-    country: "El Salvador",
-    listings: "310+",
-    priceFrom: 150,
-    image: "/images/cities/san-salvador.jpg",
-    popular: false,
-  },
-];
+import { cities } from "@/data/cities";
 
 export default function FeaturedCities() {
   return (
@@ -57,8 +15,8 @@ export default function FeaturedCities() {
             Ciudades disponibles
           </h2>
           <p className="text-muted text-lg max-w-xl mx-auto leading-relaxed">
-            Nidoo ya está presente en las principales ciudades de América
-            Latina, con nuevas ciudades sumándose cada mes.
+            Nidoo ya está presente en las principales ciudades de El Salvador,
+            con nuevas ciudades sumándose cada mes.
           </p>
         </div>
 
@@ -67,7 +25,7 @@ export default function FeaturedCities() {
           {cities.map((city) => (
             <Link
               key={city.name}
-              href={`/explorar?ciudad=${city.name.toLowerCase()}`}
+              href={`/explorar?ciudad=${city.slug}&lat=${city.lat}&lng=${city.lng}&zoom=${city.zoom}`}
               className="group relative aspect-[3/4] rounded-2xl overflow-hidden shadow-sm hover:shadow-primary-lg transition-all duration-300"
             >
               {/* Background image */}
