@@ -7,6 +7,7 @@ import {
   useCallback,
   useMemo,
 } from "react";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
   Search,
@@ -97,7 +98,7 @@ function ListingCard({
   active: boolean;
   onClick: () => void;
 }) {
-  const cardRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => {
     if (active && cardRef.current) {
@@ -106,7 +107,8 @@ function ListingCard({
   }, [active]);
 
   return (
-    <div
+    <Link
+      href={`/habitacion/${listing.slug}`}
       ref={cardRef}
       onClick={onClick}
       className="flex gap-3 rounded-2xl p-3 cursor-pointer transition-all"
@@ -117,6 +119,8 @@ function ListingCard({
           ? `0 0 0 3px ${C.primary}18`
           : "0 1px 4px rgba(44,26,14,0.06)",
         opacity: listing.available ? 1 : 0.7,
+        textDecoration: "none",
+        color: "inherit",
       }}
     >
       {/* Avatar placeholder */}
@@ -195,7 +199,7 @@ function ListingCard({
           ))}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -284,7 +288,7 @@ function BottomDrawer({
 
           {/* CTA */}
           <a
-            href={`/habitacion/${listing.id}`}
+            href={`/habitacion/${listing.slug}`}
             className="flex items-center justify-center gap-2 rounded-full py-3 text-sm font-semibold text-white transition-colors"
             style={{ background: C.primary }}
           >
