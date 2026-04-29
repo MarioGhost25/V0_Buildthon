@@ -6,6 +6,7 @@ import {
   useRef,
   useCallback,
   useMemo,
+  Suspense,
 } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -341,8 +342,32 @@ function EmptyCityState({ cityName }: { cityName: string }) {
   );
 }
 
-// ─── Main page ─────────────────────────────────────────────────────────────────
-export default function ExplorarPage() {
+// ─── Skeleton shown during SSR / param resolution ──────────────────────────────
+function ExplorarSkeleton() {
+  return (
+    <div className="flex h-screen w-full">
+      <div
+        className="hidden md:flex flex-col flex-shrink-0 gap-3 p-4"
+        style={{ width: 380, borderRight: "1px solid #e2cbb5", background: "#fdf8f4" }}
+      >
+        <div className="h-5 w-48 rounded-md animate-pulse" style={{ background: "#e2cbb5" }} />
+        <div className="h-4 w-32 rounded-md animate-pulse" style={{ background: "#e2cbb5" }} />
+        <div className="flex gap-2 mt-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-7 w-20 rounded-full animate-pulse" style={{ background: "#e2cbb5" }} />
+          ))}
+        </div>
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-36 w-full rounded-xl animate-pulse" style={{ background: "#e2cbb5" }} />
+        ))}
+      </div>
+      <div className="flex-1 animate-pulse" style={{ background: "#e2cbb5" }} />
+    </div>
+  );
+}
+
+// ─── Main page content (uses useSearchParams — must be inside Suspense) ─────────
+function ExplorarContent() {
   const searchParams = useSearchParams();
   const ciudadParam = searchParams.get("ciudad");
   const latParam    = searchParams.get("lat");
@@ -701,5 +726,14 @@ export default function ExplorarPage() {
         <BottomDrawer listing={activeListing} onClose={clearActive} />
       </div>
     </div>
+  );
+}
+
+// ─── Default export wraps content in Suspense ──────────────────────────────────
+export default function ExplorarPage() {
+  return (
+    <Suspense fallback={<ExplorarSkeleton />}>
+      <ExplorarContent />
+    </Suspense>
   );
 }
